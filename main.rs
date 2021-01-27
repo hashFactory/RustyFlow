@@ -4,11 +4,12 @@ use std::io::{Error,ErrorKind};
 use std::io;
 use std::string::String;
 
+// TODO: figure out how I'm going to store the board
 struct Board<T: ?Sized> {
     b: T,
 }
 
-// define our 
+// Define the level struct
 #[derive(Default,Debug)]
 struct Level {
     levelpack: i32,
@@ -51,7 +52,7 @@ fn parse_header(level_header: &mut String) -> (i32, i32, i32, i32) {
     (data[0], data[1], data[2], data[3])
 }
 
-fn parse_level(level_str: &mut String, lp: i32, ln: i32) -> Level {
+fn parse_level(level_str: &mut String, lp: i32) -> Level {
     // Take in level string and split into each section
     let mut data: Vec<String> = level_str.split(';').map(|l| l.to_string()).collect();
 
@@ -72,8 +73,8 @@ fn main() {
     let file: &str = "levels/levelpack_0.txt";
     let level_num: i32 = 100;
     // Read in level from levelpack
-    let mut res = read_levelpack(file, level_num as usize).expect("Err: Couldn't find level/levelpack");
-    let level = parse_level(&mut res.to_string(), 0, level_num);
+    let res = read_levelpack(file, level_num as usize).expect("Err: Couldn't find level/levelpack");
+    let level = parse_level(&mut res.to_string(), 0);
     
     println!("{:?}", level);
 }
