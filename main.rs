@@ -6,7 +6,6 @@ use std::io::Read;
 use std::io::{Error,ErrorKind};
 use std::io;
 use std::string::String;
-use std::env;
 
 // TODO: figure out how I'm going to store the board
 struct Board<T: ?Sized> {
@@ -22,12 +21,13 @@ struct Level {
     height: u8,
     num_colors: u8,
     b: Vec<u8>,
+    endpoints: Vec<(u8, u8)>,
     //board: &'a Board<u32>,
 }
 
 impl Level {
     // Default constructor, could remove since Level has trait Default
-    fn new(lp: u8, ln: u8, w: u8, h: u8, nc: u8, bb: Vec<u8>) -> Level {
+    fn new(lp: u8, ln: u8, w: u8, h: u8, nc: u8, bb: Vec<u8>, ep: Vec<(u8, u8)>) -> Level {
         Level {
             levelpack: lp,
             level_num: ln,
@@ -35,8 +35,22 @@ impl Level {
             height: h,
             num_colors: nc,
             b: bb,
+            endpoints: ep,
         }
     }
+}
+
+fn repr_board(b: &[u8], w: u8) -> String {
+    // Setup
+    let mut res = String::from("");
+    let size = b.len() / (w as usize);
+    // For each row and line add to res: String the value at that spot
+    // TODO: better handle when double digits, maybe color code
+    for i in 0..size {
+        for j in 0..w { res += &(b[((w * (i as u8) + j)) as usize].to_string() + " ") }
+        res += "\n";
+    }
+    res
 }
 
 fn read_levelpack(filename: &str, level_num: usize) -> io::Result<String> {
@@ -61,16 +75,19 @@ fn parse_header(level_header: &mut String) -> (u8, u8, u8, u8) {
 fn parse_paths(paths_str: &[String], level: &mut Level) -> () {
     // Counter will keep track of which color we're on
     let mut count: u8 = 1;
-    println!("{:?}", level.b);
+    //println!("{:?}", level.b);
 
     // Fetch coordinates out from the solution in levelpack.txt
     for p in paths_str {
         // Fetch coordinates out from the solution in levelpack.txt
         let path = p.split(',').map(|v| v.parse::<u8>().unwrap()).collect::<Vec<u8>>();
         // Populate level solution
+        level.endpoints.push((path[0], path[path.len() - 1]));
         for coord in path { level.b[coord as usize] = count }
         count += 1;
     }
+
+    println!("{}", repr_board(&level.b, level.width));
 }
 
 fn parse_level(level_str: &mut String, lp: u8) -> Level {
@@ -86,6 +103,7 @@ fn parse_level(level_str: &mut String, lp: u8) -> Level {
     level.width = meta.0;
     level.num_colors = meta.3;
     level.b = vec![0; (level.height * level.width) as usize];
+    level.endpoints = Vec::<(u8, u8)>::new();
 
     // Fill solutions from levelpack.txt
     parse_paths(&data[1..], &mut level);
