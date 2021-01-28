@@ -6,6 +6,31 @@ use std::io::Read;
 use std::io::{Error,ErrorKind};
 use std::io;
 use std::string::String;
+use std::slice::Iter;
+
+use self::Direction::*;
+
+#[derive(Debug,PartialEq)]
+pub enum Direction {
+    Up = 0,
+    Down = 1,
+    Left = 2,
+    Right = 3
+}
+
+impl Default for Direction {
+    fn default() -> Self {
+        Direction::Up
+    }
+}
+
+impl Direction {
+    pub fn iterator() -> Iter<'static, Direction> {
+        static DIRECTIONS: [Direction; 4] = [Up, Down, Left, Right];
+        DIRECTIONS.iter()
+    }
+}
+
 
 // TODO: figure out how I'm going to store the board
 struct Board<T: ?Sized> {
@@ -25,6 +50,17 @@ struct Level {
     //board: &'a Board<u32>,
 }
 
+#[derive(Default,Debug)]
+struct Node {
+    parent: Option<Box<Node>>,
+    val: u8,
+    dir: u8,
+    color: u8,
+    b: Vec<u8>,
+    tainted: [u8; 4],
+    possible: [Option<Box<Node>>; 4],
+}
+
 impl Level {
     // Default constructor, could remove since Level has trait Default
     fn new(lp: u8, ln: u8, w: u8, h: u8, nc: u8, bb: Vec<u8>, ep: Vec<(u8, u8)>) -> Level {
@@ -36,6 +72,16 @@ impl Level {
             num_colors: nc,
             b: bb,
             endpoints: ep,
+        }
+    }
+}
+
+impl Node {
+    fn new(v: u8, d: u8) -> Node {
+        Node {
+            val: v,
+            dir: d,
+            ..Default::default()
         }
     }
 }
@@ -98,6 +144,34 @@ fn parse_paths(paths_str: &[String], level: &mut Level) -> () {
     }
 
     println!("{}", repr_board(&level.b, level.width));
+}
+
+fn check_if_possible(node: &Node, dir: u8, width: u8) -> u8 {
+    use Direction::*;
+    // If came from same direction, don't allow
+    if dir == node.dir { return u8::MAX }
+
+    // Find where travelling certain direction would take it
+    let new_val = match dir {
+        0 => if node.val >= width { node.val - width } else { return u8::MAX },
+        1 => if node.val + width < node.b.len() as u8 { node.val + width } else { return u8::MAX },
+        2 => if node.val % width > 0 { node.val - 1 } else { return u8::MAX },
+        3 => if node.val % width < width - 1 { node.val + 1 } else { return u8::MAX },
+    };
+    // Check if new spot is occupied or not
+    if node.b[new_val as usize] != 0 { return u8::MAX }
+    new_val as u8
+}
+
+fn create_tree_for_color(root: &mut Node, level: &Level) -> () {
+    // Root contains a board with currently established board
+    for dir in 0..4 {
+        root.possible[dir as usize] = match check_if_possible(&mut root, dir, level.width) {
+            u8::MAX => None,
+            new_val => Some(Box::new( Node { parent: Some(Box::asRef(root), val: new_val, dir: dir, color: root.color, ..Default::default() }))
+        };
+        // TODO: Figure out how to use RawLink
+    }
 }
 
 fn parse_level(level_str: &mut String, lp: u8) -> Level {
