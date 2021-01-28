@@ -40,6 +40,16 @@ impl Level {
     }
 }
 
+fn populate_from_endpoints(b: &mut [u8], ep: &[(u8, u8)]) {
+    // Given a brand new board, populate it with endpoints we know have to be there
+    let mut i = 1;
+    for c in ep {
+        b[c.0 as usize] = i;
+        b[c.1 as usize] = i;
+        i += 1;
+    }
+}
+
 fn repr_board(b: &[u8], w: u8) -> String {
     // Setup
     let mut res = String::from("");
@@ -115,10 +125,14 @@ fn parse_level(level_str: &mut String, lp: u8) -> Level {
 fn main() {
     // Init
     let file: &str = "levels/levelpack_0.txt";
-    let level_num: u8 = 100;
+    let level_num: u8 = 0;
     // Read in level from levelpack
     let res = read_levelpack(file, level_num as usize).expect("Err: Couldn't find level/levelpack");
     let level = parse_level(&mut res.to_string(), 0);
+
+    let mut b: Vec<u8> = vec![0; 25];
+    populate_from_endpoints(&mut b[..], &level.endpoints);
+    println!("{}", repr_board(&b, 5));
     
     println!("{:?}", level);
 }
