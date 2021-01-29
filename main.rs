@@ -31,12 +31,6 @@ impl Direction {
     }
 }
 
-
-// TODO: figure out how I'm going to store the board
-struct Board<T: ?Sized> {
-    b: T,
-}
-
 // Define the level struct
 #[derive(Default,Debug)]
 struct Level {
@@ -50,15 +44,21 @@ struct Level {
     //board: &'a Board<u32>,
 }
 
-#[derive(Default,Debug)]
+#[derive(Default,Debug,Clone)]
 struct Node {
-    parent: Option<Box<Node>>,
+    parent: u32,
+    id: u32,
     val: u8,
     dir: u8,
     color: u8,
     b: Vec<u8>,
     tainted: [u8; 4],
-    possible: [Option<Box<Node>>; 4],
+    possible: [u32; 4],
+}
+
+struct Moves {
+    all: Vec<Node>,
+    root: Option<Node>
 }
 
 impl Level {
@@ -76,12 +76,33 @@ impl Level {
     }
 }
 
+fn play(b: &mut Vec<u8>, new_val: u8, color: u8) -> Vec<u8>{
+    b[new_val as usize] = color;
+    b.to_vec()
+}
+
 impl Node {
-    fn new(v: u8, d: u8) -> Node {
+    fn new(id: u32, v: u8, d: u8) -> Node {
         Node {
+            id,
             val: v,
             dir: d,
             ..Default::default()
+        }
+    }
+
+    pub fn apply(&self, dir: u8, id: u32, new_val: u8) -> Node {
+        let new_b: &mut Vec<u8> = &mut self.b.clone();
+        new_b[new_val as usize] = self.color;
+        Node {
+            parent: self.id,
+            id,
+            dir,
+            val: new_val,
+            tainted: [0; 4],
+            possible: [0; 4],
+            b: new_b.to_vec(),
+            color: self.color
         }
     }
 }
@@ -103,7 +124,7 @@ fn repr_board(b: &[u8], w: u8) -> String {
     // For each row and line add to res: String the value at that spot
     // TODO: better handle when double digits, maybe color code
     for i in 0..size {
-        for j in 0..w { res += &(b[((w * (i as u8) + j)) as usize].to_string() + " ") }
+        for j in 0..w { res += &(b[(w * (i as u8) + j) as usize].to_string() + " ") }
         res += "\n";
     }
     res
@@ -157,20 +178,45 @@ fn check_if_possible(node: &Node, dir: u8, width: u8) -> u8 {
         1 => if node.val + width < node.b.len() as u8 { node.val + width } else { return u8::MAX },
         2 => if node.val % width > 0 { node.val - 1 } else { return u8::MAX },
         3 => if node.val % width < width - 1 { node.val + 1 } else { return u8::MAX },
+        _ => return u8::MAX
     };
     // Check if new spot is occupied or not
     if node.b[new_val as usize] != 0 { return u8::MAX }
     new_val as u8
 }
 
-fn create_tree_for_color(root: &mut Node, level: &Level) -> () {
+fn create_tree_for_color(root: &mut Node, level: &Level, moves: &mut Moves, id: &mut u32) -> () {
     // Root contains a board with currently established board
     for dir in 0..4 {
-        root.possible[dir as usize] = match check_if_possible(&mut root, dir, level.width) {
-            u8::MAX => None,
-            new_val => Some(Box::new( Node { parent: Some(Box::asRef(root), val: new_val, dir: dir, color: root.color, ..Default::default() }))
+        root.possible[dir as usize] = match check_if_possible(&root, dir, level.width) {
+            u8::MAX => u32::MAX,
+            new_val => { *id += 1;
+                moves.all.append(root.apply(dir, id, new_val));
+                println!("{:?}", moves.all);
+                id
+            }
         };
-        // TODO: Figure out how to use RawLink
+    }
+}
+
+fn start_run(level: &Level) {
+    let mut b: Vec<u8> = vec![0; (level.width * level.height) as usize];
+    populate_from_endpoints(&mut b[..], &level.endpoints);
+    println!("{}", repr_board(&b, 5));
+
+    let mut moves = Moves { all: Vec::new(), root: None };
+    let mut root: Node = Node::new(0, level.endpoints[0].0, 5);
+    root.color = 1;
+    root.parent = 0;
+    root.b = b;
+    root.id = 0;
+    moves.all.append(root.clone());
+
+    let mut queue: Vec<u32> = vec![0];
+    let mut id: u32 = 0;
+
+    while (queue.len() > 0) {
+        create_tree_for_color(&mut moves.all[queue.pop() as usize], &level, &mut moves, &mut id);
     }
 }
 
@@ -203,10 +249,7 @@ fn main() {
     // Read in level from levelpack
     let res = read_levelpack(file, level_num as usize).expect("Err: Couldn't find level/levelpack");
     let level = parse_level(&mut res.to_string(), 0);
-
-    let mut b: Vec<u8> = vec![0; 25];
-    populate_from_endpoints(&mut b[..], &level.endpoints);
-    println!("{}", repr_board(&b, 5));
+    start_run(&level);
     
     println!("{:?}", level);
 }
